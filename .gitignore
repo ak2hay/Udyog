@@ -4,7 +4,9 @@ node_modules
 dist
 .env
 .env.local
+.env*.local
 *.log
 .DS_Store
 apps/web/.env.local
 packages/db/.env
+.vercel
