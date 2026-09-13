@@ -2,6 +2,9 @@ import { requireTenantContext } from "@/lib/session";
 import { AppSidebar } from "@/components/app-sidebar";
 import type { RoleKey } from "@rkyves/shared";
 
+/** Run near Neon (ap-southeast-1) to cut DB RTT from ~250ms to ~20ms. */
+export const preferredRegion = "sin1";
+
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { session, membership, tenant } = await requireTenantContext();
 

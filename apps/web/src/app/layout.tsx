@@ -3,6 +3,9 @@ import { DM_Sans, Fraunces } from "next/font/google";
 import { brand } from "@rkyves/shared";
 import "./globals.css";
 
+/** Prefer Singapore — same region as Neon (ap-southeast-1). */
+export const preferredRegion = "sin1";
+
 const body = DM_Sans({
   subsets: ["latin"],
   variable: "--font-body",

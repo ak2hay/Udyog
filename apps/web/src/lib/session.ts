@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { auth } from "./auth";
 import { headers } from "next/headers";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb, memberships, tenants } from "@rkyves/db";
 import { redirect } from "next/navigation";
 import { canAccessModule, type ModuleKey, type RoleKey } from "@rkyves/shared";
@@ -17,19 +17,23 @@ export async function requireSession() {
   return session;
 }
 
-/** One tenant/membership resolution per RSC request. */
+/** One tenant/membership resolution per RSC request (single joined query). */
 export const requireTenantContext = cache(async () => {
   const session = await requireSession();
   const db = getDb();
-  const membership = await db.query.memberships.findFirst({
-    where: eq(memberships.userId, session.user.id),
-  });
-  if (!membership) redirect("/onboarding");
-  const tenant = await db.query.tenants.findFirst({
-    where: eq(tenants.id, membership.tenantId),
-  });
-  if (!tenant) redirect("/onboarding");
-  return { session, membership, tenant, db };
+  const rows = await db
+    .select({
+      membership: memberships,
+      tenant: tenants,
+    })
+    .from(memberships)
+    .innerJoin(tenants, eq(memberships.tenantId, tenants.id))
+    .where(and(eq(memberships.userId, session.user.id), eq(memberships.isActive, true)))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) redirect("/onboarding");
+  return { session, membership: row.membership, tenant: row.tenant, db };
 });
 
 /** Server-side RBAC: throws if the membership role cannot access the module. */
