@@ -1,0 +1,20 @@
+{
+  "name": "rkyves",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.24.0",
+  "scripts": {
+    "dev": "pnpm --filter @rkyves/web dev",
+    "build": "pnpm --filter @rkyves/web build",
+    "lint": "pnpm --filter @rkyves/web lint",
+    "db:generate": "pnpm --filter @rkyves/db generate",
+    "db:migrate": "pnpm --filter @rkyves/db migrate",
+    "db:push": "pnpm --filter @rkyves/db push",
+    "db:seed": "pnpm --filter @rkyves/db seed",
+    "db:studio": "pnpm --filter @rkyves/db studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  }
+}
