@@ -56,6 +56,7 @@ Neon project: `rkyves-manufacturing-erp` (`tiny-violet-08853489`).
 
 ## Deploy (Vercel)
 
+Live: [https://udyog-five.vercel.app](https://udyog-five.vercel.app)  
 Repo: [ak2hay/Udyog](https://github.com/ak2hay/Udyog). Next.js in `apps/web` includes UI + Server Actions + Better Auth — no separate backend service.
 
 1. Import the GitHub repo in [Vercel](https://vercel.com/new).
