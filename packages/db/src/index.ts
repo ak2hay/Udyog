@@ -1,14 +1,10 @@
-import { Pool, neonConfig } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 
-// Node/Vercel: WebSocket constructor required for neon-serverless Pool
-neonConfig.webSocketConstructor = ws;
-
 export function createDb(connectionString: string) {
-  const pool = new Pool({ connectionString });
-  return drizzle(pool, { schema });
+  const sql = neon(connectionString);
+  return drizzle(sql, { schema });
 }
 
 export type Database = ReturnType<typeof createDb>;
