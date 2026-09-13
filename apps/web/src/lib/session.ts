@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { auth } from "./auth";
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
@@ -5,9 +6,10 @@ import { getDb, memberships, tenants } from "@rkyves/db";
 import { redirect } from "next/navigation";
 import { canAccessModule, type ModuleKey, type RoleKey } from "@rkyves/shared";
 
-export async function getSession() {
+/** One session lookup per RSC request (layout + pages + server actions share this). */
+export const getSession = cache(async () => {
   return auth.api.getSession({ headers: await headers() });
-}
+});
 
 export async function requireSession() {
   const session = await getSession();
@@ -15,7 +17,8 @@ export async function requireSession() {
   return session;
 }
 
-export async function requireTenantContext() {
+/** One tenant/membership resolution per RSC request. */
+export const requireTenantContext = cache(async () => {
   const session = await requireSession();
   const db = getDb();
   const membership = await db.query.memberships.findFirst({
@@ -27,7 +30,7 @@ export async function requireTenantContext() {
   });
   if (!tenant) redirect("/onboarding");
   return { session, membership, tenant, db };
-}
+});
 
 /** Server-side RBAC: throws if the membership role cannot access the module. */
 export async function requireModuleAccess(module: ModuleKey) {

@@ -20,11 +20,13 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",
     "@rkyves/shared": "workspace:*",
+    "dotenv": "^16.5.0",
     "drizzle-orm": "^0.44.2",
-    "dotenv": "^16.5.0"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/ws": "^8.18.1",
     "drizzle-kit": "^0.31.1",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"

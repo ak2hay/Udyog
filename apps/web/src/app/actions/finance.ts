@@ -314,52 +314,64 @@ export async function listAuditLogs() {
 
 export async function getDashboardStats() {
   const { tenant, db } = await requireModuleAccess("dashboard");
+  const tenantId = tenant.id;
 
-  const [soCount] = await db
-    .select({ c: sql<number>`count(*)::int` })
-    .from(salesOrders)
-    .where(eq(salesOrders.tenantId, tenant.id));
-
-  const [moCount] = await db
-    .select({ c: sql<number>`count(*)::int` })
-    .from(productionOrders)
-    .where(eq(productionOrders.tenantId, tenant.id));
-
-  const invoices = await db.query.salesInvoices.findMany({
-    where: eq(salesInvoices.tenantId, tenant.id),
-  });
-  const receivables = invoices.reduce(
-    (sum, inv) => sum + (Number(inv.totalAmount) - Number(inv.paidAmount || 0)),
-    0,
-  );
-
-  const purchaseInvs = await db.query.purchaseInvoices.findMany({
-    where: eq(purchaseInvoices.tenantId, tenant.id),
-  });
-  const payables = purchaseInvs.reduce(
-    (sum, inv) => sum + (Number(inv.totalAmount) - Number(inv.paidAmount || 0)),
-    0,
-  );
-
-  const stock = await db.query.stockBalances.findMany({
-    where: eq(stockBalances.tenantId, tenant.id),
-  });
-  const itemsAll = await db.query.items.findMany({
-    where: eq(items.tenantId, tenant.id),
-  });
-  const itemMap = Object.fromEntries(itemsAll.map((i) => [i.id, i]));
-  const lowStock = stock.filter((s) => {
-    const item = itemMap[s.itemId];
-    return item && Number(s.quantity) < Number(item.reorderLevel || 0);
-  }).length;
+  const [
+    [soCount],
+    [moCount],
+    [ar],
+    [ap],
+    [openInv],
+    [low],
+  ] = await Promise.all([
+    db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(salesOrders)
+      .where(eq(salesOrders.tenantId, tenantId)),
+    db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(productionOrders)
+      .where(eq(productionOrders.tenantId, tenantId)),
+    db
+      .select({
+        v: sql<string>`coalesce(sum(${salesInvoices.totalAmount}::numeric - coalesce(${salesInvoices.paidAmount}::numeric, 0)), 0)`,
+      })
+      .from(salesInvoices)
+      .where(eq(salesInvoices.tenantId, tenantId)),
+    db
+      .select({
+        v: sql<string>`coalesce(sum(${purchaseInvoices.totalAmount}::numeric - coalesce(${purchaseInvoices.paidAmount}::numeric, 0)), 0)`,
+      })
+      .from(purchaseInvoices)
+      .where(eq(purchaseInvoices.tenantId, tenantId)),
+    db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(salesInvoices)
+      .where(
+        and(
+          eq(salesInvoices.tenantId, tenantId),
+          sql`${salesInvoices.totalAmount}::numeric > coalesce(${salesInvoices.paidAmount}::numeric, 0)`,
+        ),
+      ),
+    db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(stockBalances)
+      .innerJoin(items, eq(stockBalances.itemId, items.id))
+      .where(
+        and(
+          eq(stockBalances.tenantId, tenantId),
+          sql`${stockBalances.quantity}::numeric < coalesce(${items.reorderLevel}::numeric, 0)`,
+        ),
+      ),
+  ]);
 
   return {
     salesOrders: Number(soCount?.c ?? 0),
     productionOrders: Number(moCount?.c ?? 0),
-    receivables,
-    payables,
-    lowStock,
-    openInvoices: invoices.filter((i) => Number(i.totalAmount) > Number(i.paidAmount || 0)).length,
+    receivables: Number(ar?.v ?? 0),
+    payables: Number(ap?.v ?? 0),
+    lowStock: Number(low?.c ?? 0),
+    openInvoices: Number(openInv?.c ?? 0),
   };
 }
 
