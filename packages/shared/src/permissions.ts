@@ -41,3 +41,14 @@ export const ROLE_PERMISSIONS: Record<RoleKey, ModuleKey[]> = {
 export function canAccessModule(role: RoleKey, module: ModuleKey): boolean {
   return ROLE_PERMISSIONS[role]?.includes(module) ?? false;
 }
+
+/** Role access AND plan entitlement (null/empty planModules = all modules allowed). */
+export function canAccessModuleWithPlan(
+  role: RoleKey,
+  module: ModuleKey,
+  planModules: string[] | null | undefined,
+): boolean {
+  if (!canAccessModule(role, module)) return false;
+  if (!planModules || planModules.length === 0) return true;
+  return planModules.includes(module);
+}

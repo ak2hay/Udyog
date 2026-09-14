@@ -1,32 +1,62 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { brand } from "@rkyves/shared";
 import { authClient } from "@/lib/auth-client";
 import { Button, Card, Input, Label } from "@/components/ui";
+import { isEmailOtpEnabled, sendLoginOtp, verifyLoginOtpAction } from "@/app/actions/otp";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [otp, setOtp] = useState("");
+  const [otpEnabled, setOtpEnabled] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    isEmailOtpEnabled().then(setOtpEnabled).catch(() => setOtpEnabled(false));
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError("");
-    const { error: err } = await authClient.signIn.email({ email, password });
-    setLoading(false);
-    if (err) {
-      setError(err.message || err.code || "Login failed");
-      return;
+
+    try {
+      if (otpEnabled) {
+        if (!otpSent) {
+          const fd = new FormData();
+          fd.set("email", email);
+          await sendLoginOtp(fd);
+          setOtpSent(true);
+          setLoading(false);
+          return;
+        }
+        const verified = await verifyLoginOtpAction(email, otp);
+        if (!verified.ok) {
+          setError(verified.error || "Invalid OTP");
+          setLoading(false);
+          return;
+        }
+      }
+
+      const { error: err } = await authClient.signIn.email({ email, password });
+      if (err) {
+        setError(err.message || err.code || "Login failed");
+        setLoading(false);
+        return;
+      }
+      router.push("/dashboard");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+      setLoading(false);
     }
-    // App layout sends users without a membership to /onboarding
-    router.push("/dashboard");
-    router.refresh();
   }
 
   return (
@@ -60,10 +90,28 @@ export default function LoginPage() {
               required
             />
           </div>
+          {otpEnabled && otpSent ? (
+            <div>
+              <Label>Email OTP</Label>
+              <Input
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                required
+                placeholder="Enter code from email"
+              />
+            </div>
+          ) : null}
           {error ? <p className="text-sm text-[var(--color-danger)]">{error}</p> : null}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in…" : "Sign in"}
+            {loading
+              ? "Please wait…"
+              : otpEnabled && !otpSent
+                ? "Send OTP & continue"
+                : "Sign in"}
           </Button>
+          {otpEnabled ? (
+            <p className="text-center text-xs text-[var(--color-muted)]">Email OTP is required</p>
+          ) : null}
         </form>
         <p className="mt-4 text-center text-sm text-[var(--color-muted)]">
           New here?{" "}

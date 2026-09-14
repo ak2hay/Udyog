@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { getDb, users, sessions, accounts, verifications } from "@rkyves/db";
+import { sendPlatformEmail } from "./smtp";
 
 const baseURL = process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -28,8 +29,11 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     sendResetPassword: async ({ user, url }) => {
-      // MVP: log reset link (wire email provider later)
-      console.info(`[auth] Password reset for ${user.email}: ${url}`);
+      await sendPlatformEmail({
+        to: user.email,
+        subject: "Reset your password",
+        text: `Reset your password using this link:\n\n${url}\n\nIf you did not request this, ignore this email.`,
+      });
     },
   },
   user: {

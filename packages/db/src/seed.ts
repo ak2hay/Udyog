@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { eq } from "drizzle-orm";
+import { DEFAULT_PLAN_MODULES } from "@rkyves/shared";
 import { getDb } from "./index";
 import {
   tenants,
@@ -14,9 +15,154 @@ import {
   bomLines,
   routings,
   routingOperations,
+  plans,
+  planModules,
+  platformAdmins,
+  users,
+  platformSettings,
 } from "./schema";
 
-async function seed() {
+async function seedPlans() {
+  const db = getDb();
+
+  const defs = [
+    {
+      code: "starter",
+      name: "Starter",
+      description: "Sales, Purchase, Inventory, Customers, Suppliers, basic finance",
+      pricePaise: 199900,
+      maxUsers: 5,
+      maxBranches: 1,
+      sortOrder: 1,
+    },
+    {
+      code: "growth",
+      name: "Growth",
+      description: "Adds Production, BOM, Quality, advanced reports",
+      pricePaise: 499900,
+      maxUsers: 25,
+      maxBranches: 3,
+      sortOrder: 2,
+    },
+    {
+      code: "enterprise",
+      name: "Enterprise",
+      description: "Full platform: multi-branch, API, integrations, advanced manufacturing",
+      pricePaise: 999900,
+      maxUsers: 200,
+      maxBranches: 50,
+      sortOrder: 3,
+    },
+  ];
+
+  const growth = await db.query.plans.findFirst({ where: eq(plans.code, "growth") });
+
+  for (const def of defs) {
+    let plan = await db.query.plans.findFirst({ where: eq(plans.code, def.code) });
+    if (!plan) {
+      const [created] = await db
+        .insert(plans)
+        .values({
+          ...def,
+          currency: "INR",
+          interval: "month",
+          isPublic: true,
+          isActive: true,
+        })
+        .returning();
+      plan = created;
+      const mods = DEFAULT_PLAN_MODULES[def.code] ?? [];
+      if (mods.length) {
+        await db.insert(planModules).values(mods.map((moduleKey) => ({ planId: plan!.id, moduleKey })));
+      }
+      console.log("Seeded plan:", def.code);
+    }
+  }
+
+  // Default platform settings stubs
+  const existingSmtp = await db.query.platformSettings.findFirst({
+    where: eq(platformSettings.key, "smtp"),
+  });
+  if (!existingSmtp) {
+    await db.insert(platformSettings).values([
+      {
+        key: "smtp",
+        value: {
+          host: "",
+          port: 587,
+          secure: false,
+          user: "",
+          password: "",
+          fromName: "Rkyves",
+          fromEmail: "",
+        },
+      },
+      {
+        key: "otp",
+        value: {
+          emailEnabled: false,
+          length: 6,
+          expiryMinutes: 10,
+          smsEnabled: false,
+          twilioAccountSid: "",
+          twilioAuthToken: "",
+          twilioFromNumber: "",
+        },
+      },
+      {
+        key: "razorpay",
+        value: {
+          keyId: "",
+          keySecret: "",
+          webhookSecret: "",
+          mode: "test",
+        },
+      },
+      {
+        key: "app",
+        value: {
+          publicName: "Rkyves",
+          supportEmail: "support@rkyves.local",
+          defaultTrialDays: 14,
+          signupOpen: true,
+        },
+      },
+      {
+        key: "security",
+        value: {
+          requireEmailVerifyBeforeTenant: false,
+          sessionIdleMinutes: 480,
+        },
+      },
+    ]);
+    console.log("Seeded default platform settings");
+  }
+
+  // Bootstrap platform admins from SUPER_ADMIN_EMAILS
+  const emails = (process.env.SUPER_ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const email of emails) {
+    const user = await db.query.users.findFirst({ where: eq(users.email, email) });
+    if (!user) {
+      console.log(`SUPER_ADMIN_EMAILS: no user yet for ${email} (sign up first, then re-seed)`);
+      continue;
+    }
+    const existing = await db.query.platformAdmins.findFirst({
+      where: eq(platformAdmins.userId, user.id),
+    });
+    if (!existing) {
+      await db.insert(platformAdmins).values({ userId: user.id });
+      console.log("Granted platform admin:", email);
+    }
+  }
+
+  return growth;
+}
+
+async function seedDemoTenant(growthPlanId?: string) {
   const db = getDb();
 
   const existing = await db.query.tenants.findFirst({
@@ -24,9 +170,18 @@ async function seed() {
   });
   if (existing) {
     console.log("Demo tenant already exists:", existing.id);
-    console.log("Sign up in the app, then link membership manually or create a new company via onboarding.");
+    if (growthPlanId && !existing.planId) {
+      await db
+        .update(tenants)
+        .set({ planId: growthPlanId, status: "active", updatedAt: new Date() })
+        .where(eq(tenants.id, existing.id));
+      console.log("Attached Growth plan to demo tenant");
+    }
     return existing.id;
   }
+
+  const trialEnds = new Date();
+  trialEnds.setDate(trialEnds.getDate() + 14);
 
   const [tenant] = await db
     .insert(tenants)
@@ -43,6 +198,9 @@ async function seed() {
       pincode: "411001",
       phone: "+91 98765 43210",
       email: "admin@precision.demo",
+      status: "active",
+      planId: growthPlanId ?? null,
+      trialEndsAt: trialEnds,
     })
     .returning();
 
@@ -245,6 +403,12 @@ async function seed() {
   console.log("Seeded demo manufacturing data for tenant", tenant.id);
   console.log("Create an account via /signup, then use onboarding OR attach membership to this tenant.");
   return tenant.id;
+}
+
+async function seed() {
+  const growth = await seedPlans();
+  const growthPlan = await getDb().query.plans.findFirst({ where: eq(plans.code, "growth") });
+  await seedDemoTenant(growthPlan?.id);
 }
 
 seed().catch((err) => {

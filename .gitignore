@@ -10,3 +10,4 @@ dist
 apps/web/.env.local
 packages/db/.env
 .vercel
+.env*

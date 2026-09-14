@@ -15,6 +15,7 @@ export const DOCUMENT_PREFIXES = {
   payment: "PAY",
   stockAdjustment: "ADJ",
   materialIssue: "MI",
+  tallyExport: "TE",
 } as const;
 
 export type DocumentType = keyof typeof DOCUMENT_PREFIXES;

@@ -42,8 +42,10 @@ export const navItems: NavItem[] = [
   { href: "/quality/inspections", label: "Quality", icon: ClipboardCheck, module: "quality" },
   { href: "/finance/receivables", label: "Receivables", icon: Wallet, module: "finance" },
   { href: "/finance/payables", label: "Payables", icon: Wallet, module: "finance" },
+  { href: "/finance/tally-export", label: "Tally Export", icon: FileText, module: "finance" },
   { href: "/admin/company", label: "Company", icon: Settings, module: "admin" },
   { href: "/admin/users", label: "Users", icon: Users, module: "admin" },
+  { href: "/billing", label: "Billing", icon: Wallet, module: "admin" },
 ];
 
 export { brand };

@@ -32,6 +32,13 @@ export const tenants = pgTable("tenants", {
   financialYearStartMonth: integer("fy_start_month").default(4),
   currency: text("currency").default("INR"),
   timezone: text("timezone").default("Asia/Kolkata"),
+  /** Lifecycle: active | trial | suspended | cancelled */
+  status: text("status").notNull().default("trial"),
+  /** Soft FK to plans.id (defined in platform schema) */
+  planId: uuid("plan_id"),
+  trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+  suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+  suspendedReason: text("suspended_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

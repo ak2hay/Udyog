@@ -1,10 +1,19 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import { getDb, tenants, memberships, warehouses, branches } from "@rkyves/db";
+import {
+  getDb,
+  tenants,
+  memberships,
+  warehouses,
+  branches,
+  plans,
+  tenantSubscriptions,
+} from "@rkyves/db";
 import { requireSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { getAppSettings, getSecuritySettings } from "@/lib/platform";
 
 function slugify(name: string) {
   return name
@@ -16,12 +25,24 @@ function slugify(name: string) {
 
 export async function createTenant(formData: FormData) {
   const session = await requireSession();
+  const security = await getSecuritySettings();
+  if (security.requireEmailVerifyBeforeTenant && !session.user.emailVerified) {
+    throw new Error("Verify your email before creating a company");
+  }
+
+  const app = await getAppSettings();
+  if (!app.signupOpen) throw new Error("New company signup is closed");
+
   const db = getDb();
   const name = String(formData.get("name") || "").trim();
   if (!name) throw new Error("Company name required");
   let slug = slugify(name) || `tenant-${Date.now()}`;
   const existing = await db.query.tenants.findFirst({ where: eq(tenants.slug, slug) });
   if (existing) slug = `${slug}-${Date.now().toString(36)}`;
+
+  const starter = await db.query.plans.findFirst({ where: eq(plans.code, "starter") });
+  const trialEndsAt = new Date();
+  trialEndsAt.setDate(trialEndsAt.getDate() + (app.defaultTrialDays || 14));
 
   const [tenant] = await db
     .insert(tenants)
@@ -35,6 +56,9 @@ export async function createTenant(formData: FormData) {
       city: String(formData.get("city") || "") || null,
       state: String(formData.get("state") || "") || null,
       email: session.user.email,
+      status: "trial",
+      planId: starter?.id ?? null,
+      trialEndsAt,
     })
     .returning();
 
@@ -65,6 +89,16 @@ export async function createTenant(formData: FormData) {
     name: "Main Stores",
     isDefault: true,
   });
+
+  if (starter) {
+    await db.insert(tenantSubscriptions).values({
+      tenantId: tenant.id,
+      planId: starter.id,
+      status: "trialing",
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: trialEndsAt,
+    });
+  }
 
   revalidatePath("/dashboard");
   redirect("/dashboard");
